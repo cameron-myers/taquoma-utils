@@ -6,6 +6,92 @@ import jenkins
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from azure.storage.blob import BlobServiceClient, generate_account_sas, ResourceTypes, AccountSasPermissions
+import uuid
+import requests
+import json
+
+def rename_file_for_upload(file_path):
+    """
+    Rename the file with a guid
+    
+    Args:
+        file_path: Path to the file that should be renamed
+    Returns:
+        str: New file path with GUID name
+    """
+    
+    # Generate a unique GUID
+    guid = str(uuid.uuid4())
+    
+    # Get the file directory and extension
+    file_dir = os.path.dirname(file_path)
+    _, file_extension = os.path.splitext(file_path)
+    
+    # Create the new file path with GUID
+    new_file_path = os.path.join(file_dir, guid + file_extension)
+    
+    # Rename the file
+    os.rename(file_path, new_file_path)
+    
+    return new_file_path
+
+
+def get_file_metadata(file_name, file_path):
+    """
+    Get metadata of the file.
+    
+    Args:
+        file_path: Path to the file
+    
+    Returns:
+        dict: Metadata of the file
+    """
+    
+    metadata = {
+        'id': os.path.splitext(os.path.basename(file_path))[0],
+        'packagemode': get_secret('PACKAGE_MODE'),
+        'packagename': file_name,
+        'commit': get_secret('COMMIT_SHA'),
+        'packageformat': os.path.splitext(os.path.basename(file_path))[0][1],
+        'packagesize': os.path.getsize(file_path)
+    }
+    return metadata
+
+
+def register_file_to_newdahkobed(package_name, file_path):
+    """
+    Register the uploaded file to newdahkobed
+    Get all the required data about the file
+    
+    Args:
+        file_path: Path to the file that was uploaded
+    """
+    
+    try:
+        # Get metadata about the file
+
+        metadata = get_file_metadata(package_name, file_path)
+        
+        # Get Cosmos DB endpoint and key from secrets
+        cosmos_endpoint = get_secret('SERVER_ENDPOINT')
+        
+        # Make POST request to register the file
+        logger.info(f"Registering file metadata to newdahkobed: {metadata['id']}")
+        response = requests.post(cosmos_endpoint + "/submit", params=metadata )
+        
+        # Check response status
+        if response.status_code in (200, 201, 204):
+            logger.info(f"Successfully registered file in newdahkobed. Status code: {response.status_code}")
+            return True
+        else:
+            logger.error(f"Failed to register file in newdahkobed. Status code: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error registering file to newdahkobed: {str(e)}")
+        return False    
+    
     
 def get_secret(key):
     # For Jenkins jobs, first check if the secret is directly available as an environment variable
@@ -31,8 +117,10 @@ def get_secret(key):
             server = jenkins.Jenkins(jenkins_url, username=jenkins_user, password=jenkins_token)
             secret = server.get_credential(key)
             if not secret:
-                logger.error(f"Secret {key} not found in Jenkins credentials provider")
-                sys.exit(1)
+                secret = os.getenv(key)
+                if not secret:
+                    logger.error(f"Secret {key} not found in Jenkins credentials provider or environment variables")
+                    sys.exit(1)
             return secret
             
         except Exception as e:
@@ -67,7 +155,7 @@ def upload_file_with_azcopy(file_path):
         #TODO Update this to build mode
         container_name = get_secret('AZURE_CONTAINER_NAME')
         
-        file_name = os.path.basename(file_path)
+        
         
         # Generate SAS token for azcopy (in real implementation, you might want to use a helper function)
         # For this example, we'll assume the SAS token is stored directly
@@ -79,6 +167,12 @@ def upload_file_with_azcopy(file_path):
             expiry=datetime.now(timezone.utc) + timedelta(hours=1)
         )
         
+        package_name = os.path.basename(file_path)
+        logger.info(f"Package Name: {file_path}")
+        rename_path = rename_file_for_upload(file_path)
+        logger.info(f"Renamed file to {rename_path}")
+        
+        file_name = os.path.basename(rename_path)
         # Build the destination URL
         destination_url = f"https://{storage_account}.blob.core.windows.net/{container_name}/{file_name}?{sas_token}"
         
@@ -103,15 +197,15 @@ def upload_file_with_azcopy(file_path):
             logger.error(f"Error checking/creating container: {str(e)}")
             return False
         
-        logger.info(f"Uploading {file_path} to Azure Storage")
+        logger.info(f"Uploading {rename_path} to Azure Storage")
         
         # Execute azcopy command
-        cmd = ['azcopy', 'copy', file_path, destination_url, '--overwrite=true']
+        cmd = ['azcopy', 'copy', rename_path, destination_url, '--overwrite=true']
         result = subprocess.run(cmd, stdout=sys.stdout, stderr=sys.stderr, text=True)
 
         if result.returncode == 0:
             logger.info(f"Successfully uploaded {file_path} to Azure Storage")
-            #register_file_to_cosmos(file_path)
+            register_file_to_newdahkobed(package_name, rename_path)
             return True
         else:
             logger.error({result})
