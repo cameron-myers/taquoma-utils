@@ -77,7 +77,12 @@ def register_file_to_newdahkobed(package_name, file_path):
         
         # Make POST request to register the file
         logger.info(f"Registering file metadata to newdahkobed: {metadata['id']}")
-        response = requests.post(cosmos_endpoint + "/submit", params=metadata )
+        
+        header = {
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(cosmos_endpoint + "/submit", headers=header, params=metadata )
         
         # Check response status
         if response.status_code in (200, 201, 204):
