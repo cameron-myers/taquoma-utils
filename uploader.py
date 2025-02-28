@@ -3,7 +3,6 @@ import sys
 import logging
 import subprocess
 import jenkins
-import requests
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from azure.storage.blob import BlobServiceClient, generate_account_sas, ResourceTypes, AccountSasPermissions
@@ -67,7 +66,6 @@ def upload_file_with_azcopy(file_path):
         storage_key = get_secret('AZURE_STORAGE_KEY')
         #TODO Update this to build mode
         container_name = get_secret('AZURE_CONTAINER_NAME')
-        client_id = get_secret('AZURE_CLIENT_ID')
         
         file_name = os.path.basename(file_path)
         
@@ -104,18 +102,6 @@ def upload_file_with_azcopy(file_path):
         except Exception as e:
             logger.error(f"Error checking/creating container: {str(e)}")
             return False
-        
-        # azcopy loginazcopy login --identity --identity-client-id "<client-id>"
-        # cmd = ['azcopy', 'login', '--identity-client-id', client_id]
-        # result = subprocess.run(cmd, capture_output=True, text=True)
-        # logger.info(file_name)
-        # if result.returncode == 0:
-        #     logger.info(f"Successfully logged in to AzCopy")
-        #     logger.info(result.stdout)
-        # else:
-        #     logger.error({result})
-        #     logger.error(f"Failed to upload file: {result.stderr}")
-        #     return False
         
         logger.info(f"Uploading {file_path} to Azure Storage")
         
@@ -155,16 +141,6 @@ if __name__ == "__main__":
         logger.info("Running in Jenkins environment")
 
     try:
-        # logger.info(f"Retrieving secret: {secret_key}")
-        # secret_value = get_secret(secret_key)
-        # logger.info(f"Successfully retrieved secret: {secret_key}")
-        
-        # # Instead of printing the actual secret value for security reasons
-        # # just confirm it was retrieved successfully
-        # logger.info(f"Secret {secret_key} was retrieved successfully")
-        
-        # Add your main application logic here that uses the secret
-        
         upload_file_with_azcopy(get_secret('TEST_FILE'))
         
     except Exception as e:
