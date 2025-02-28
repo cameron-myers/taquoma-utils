@@ -5,68 +5,8 @@ import subprocess
 import jenkins
 import requests
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
-from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
-
-def generate_azure_sas_token(storage_account, storage_key, container_name, blob_name=None, expiry_hours=1):
-    """
-    Generate an Azure SAS token for blob storage access.
-    
-    Args:
-        storage_account: Azure storage account name
-        storage_key: Azure storage account key
-        container_name: Container name
-        blob_name: Optional - specific blob name (if None, applies to whole container)
-        expiry_hours: Number of hours the token should be valid for
-        
-    Returns:
-        str: SAS token string (includes the '?' prefix for appending to URLs)
-    """
-    try:
-        # Calculate token start and expiry times
-        start_time = datetime.utcnow()
-        expiry_time = start_time + timedelta(hours=expiry_hours)
-        
-        # Define permissions
-        permissions = BlobSasPermissions(
-            read=True,       # Allow read operations
-            write=True,      # Allow write operations 
-            delete=False,    # Don't allow delete operations
-            list=False,      # Don't allow listing blobs in container
-            create=True      # Allow creating new blobs
-        )
-        
-        # Generate the SAS token
-        if blob_name:
-            # Generate SAS for specific blob
-            sas_token = generate_blob_sas(
-                account_name=storage_account,
-                container_name=container_name,
-                blob_name=blob_name,
-                account_key=storage_key,
-                permission=permissions,
-                expiry=expiry_time,
-                start=start_time,
-                protocol="https"
-            )
-        else:
-            # Generate SAS for entire container
-            sas_token = generate_blob_sas(
-                account_name=storage_account,
-                container_name=container_name,
-                account_key=storage_key,
-                permission=permissions,
-                expiry=expiry_time,
-                start=start_time,
-                protocol="https"
-            )
-            
-        # Return the SAS token with ? prefix for URL appending
-        return f"?{sas_token}"
-        
-    except Exception as e:
-        logger.error(f"Error generating SAS token: {str(e)}")
-        return None
+from datetime import datetime, timedelta, timezone
+from azure.storage.blob import BlobServiceClient, generate_account_sas, ResourceTypes, AccountSasPermissions
     
 def get_secret(key):
     # For Jenkins jobs, first check if the secret is directly available as an environment variable
@@ -115,6 +55,9 @@ def upload_file_with_azcopy(file_path):
         bool: True if upload was successful, False otherwise
     """
     try:
+       
+        file_path = os.getcwd() + file_path
+        logger.info(file_path)
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
             return False
@@ -125,31 +68,54 @@ def upload_file_with_azcopy(file_path):
         #TODO Update this to build mode
         container_name = get_secret('AZURE_CONTAINER_NAME')
         client_id = get_secret('AZURE_CLIENT_ID')
+        
+        file_name = os.path.basename(file_path)
+        
         # Generate SAS token for azcopy (in real implementation, you might want to use a helper function)
         # For this example, we'll assume the SAS token is stored directly
-        sas_token = generate_azure_sas_token(
+        sas_token = generate_account_sas(
             storage_account,
             storage_key,
-            container_name,
-            blob_name=os.path.basename(file_path),
-            expiry_hours=1
+            resource_types=ResourceTypes(container=True, object=True),
+            permission=AccountSasPermissions(write=True,read=True, add=True, create=True),
+            expiry=datetime.now(timezone.utc) + timedelta(hours=1)
         )
         
         # Build the destination URL
-        file_name = os.path.basename(file_path)
-        destination_url = f"https://{storage_account}.blob.core.windows.net/{container_name}/{file_name}{sas_token}"
+        destination_url = f"https://{storage_account}.blob.core.windows.net/{container_name}/{file_name}?{sas_token}"
         
+        
+        # Check if container exists and create it if it doesn't
+        blob_service_client = BlobServiceClient(
+            account_url=f"https://{storage_account}.blob.core.windows.net",
+            credential=storage_key
+        )
+        try:
+            # Try to get the container client
+            container_client = blob_service_client.get_container_client(container_name)
+            
+            # Check if container exists
+            if not container_client.exists():
+                logger.info(f"Container {container_name} does not exist. Creating now...")
+                container_client.create_container()
+                logger.info(f"Container {container_name} created successfully")
+            else:
+                logger.info(f"Container {container_name} already exists")
+        except Exception as e:
+            logger.error(f"Error checking/creating container: {str(e)}")
+            return False
         
         # azcopy loginazcopy login --identity --identity-client-id "<client-id>"
-        cmd = ['azcopy', 'login', '--identity', '--identity-client-id', "${client_id}"]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            logger.info(f"Successfully logged in to AzCopy")
-            logger.info(result.stdout)
-        else:
-            logger.error({result})
-            logger.error(f"Failed to upload file: {result.stderr}")
-            return False
+        # cmd = ['azcopy', 'login', '--identity-client-id', client_id]
+        # result = subprocess.run(cmd, capture_output=True, text=True)
+        # logger.info(file_name)
+        # if result.returncode == 0:
+        #     logger.info(f"Successfully logged in to AzCopy")
+        #     logger.info(result.stdout)
+        # else:
+        #     logger.error({result})
+        #     logger.error(f"Failed to upload file: {result.stderr}")
+        #     return False
         
         logger.info(f"Uploading {file_path} to Azure Storage")
         
