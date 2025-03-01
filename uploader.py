@@ -52,7 +52,7 @@ def get_file_metadata(file_name, file_path):
         'packagemode': get_secret('PACKAGE_MODE'),
         'packagename': file_name,
         'commit': get_secret('COMMIT_SHA'),
-        'packageformat': os.path.splitext(os.path.basename(file_path))[0][1],
+        'packageformat': os.path.splitext(os.path.basename(file_path))[1],
         'packagesize': os.path.getsize(file_path)
     }
     return metadata
@@ -148,10 +148,21 @@ def upload_file_with_azcopy(file_path):
     """
     try:
        
-        file_path = os.getcwd() + file_path
-        logger.info(file_path)
+        if not os.path.isabs(file_path):
+            file_path = os.path.join(os.getcwd(), file_path)
+        # Remove leading slash if it's just a relative path mistakenly starting with /
+        elif file_path.startswith('/') and not os.path.exists(file_path) and os.path.exists(file_path[1:]):
+            file_path = file_path[1:]
+            logger.info(f"Looking for file at path: {file_path}")
+            
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
+            # Try to list files in the directory to help debug
+            try:
+                dir_path = os.path.dirname(file_path) or '.'
+                logger.info(f"Contents of directory {dir_path}: {os.listdir(dir_path)}")
+            except Exception as dir_err:
+                logger.error(f"Could not list directory contents: {str(dir_err)}")
             return False
         
         # Get required Azure credentials
@@ -173,7 +184,7 @@ def upload_file_with_azcopy(file_path):
         )
         
         package_name = os.path.basename(file_path)
-        logger.info(f"Package Name: {file_path}")
+        logger.info(f"Package Name: {package_name}")
         rename_path = rename_file_for_upload(file_path)
         logger.info(f"Renamed file to {rename_path}")
         
@@ -240,6 +251,7 @@ if __name__ == "__main__":
         logger.info("Running in Jenkins environment")
 
     try:
+        
         upload_file_with_azcopy(get_secret('TEST_FILE'))
         
     except Exception as e:
