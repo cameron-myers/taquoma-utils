@@ -250,8 +250,23 @@ if __name__ == "__main__":
     else:
         logger.info("Running in Jenkins environment")
 
+    # Check if the server is healthy before proceeding
     try:
+        server_endpoint = get_secret('SERVER_ENDPOINT')
+        logger.info(f"Checking server health at {server_endpoint}/healthcheck")
+        health_response = requests.get(f"{server_endpoint}/healthcheck", timeout=10)
         
+        if health_response.status_code == 200 and health_response.text == 'Alive':
+            logger.info("Server health check passed")
+        else:
+            logger.error(f"Server health check failed with status code: {health_response.status_code}")
+            logger.error(f"Response: {health_response.text}")
+            sys.exit(1)
+    except Exception as e:
+        logger.error(f"Failed to perform server health check: {str(e)}")
+        sys.exit(1)
+    #SERVER UP AND RUNNING - Attempt to upload the file
+    try:
         upload_file_with_azcopy(get_secret('TEST_FILE'))
         
     except Exception as e:
