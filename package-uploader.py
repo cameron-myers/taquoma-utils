@@ -204,7 +204,7 @@ if __name__ == "__main__":
         sys.exit(1)
     #SERVER UP AND RUNNING - Attempt to upload the file
     try:
-        upload_file_with_azcopy(get_secret('TEST_FILE'))
+        upload_file_with_azcopy(get_secret('PACKAGE_PATH'))
         
     except Exception as e:
         logger.error(f"Script failed: {str(e)}")
