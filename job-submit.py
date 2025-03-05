@@ -109,7 +109,7 @@ if __name__ == "__main__":
     try:
         metadata = generate_build_metadata()
         if metadata:
-            upload_metadata_to_server(metadata)
+            response = upload_metadata_to_server(metadata)
         else:
             logger.error("No metadata generated, skipping upload")
             raise Exception("No metadata generated, skipping upload")
