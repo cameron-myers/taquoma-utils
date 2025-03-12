@@ -60,7 +60,7 @@ def setup_logging(level=logging.INFO):
 
 def get_secret(key):
     """
-    Get a secret from environment variables or Jenkins credentials.
+    Get a secret from environment variables or .env file.
     
     Args:
         key: The key/name of the secret to retrieve
@@ -71,41 +71,13 @@ def get_secret(key):
     Raises:
         Exception: If the secret cannot be found
     """
-    # For Jenkins jobs, first check if the secret is directly available as an environment variable
-    # This is common when using Jenkins credentials binding plugin
+    # First check if the secret is directly available as an environment variable
     secret = os.getenv(key)
     if secret:
         logger.info(f"Found secret {key} in environment variables")
         return secret
-
-    # If we're in Jenkins but the secret isn't directly bound, try to get it from Jenkins credentials
-    if os.getenv('JENKINS_HOME'):
-        try:
-            # These should be provided by Jenkins when setting up the job
-            jenkins_url = os.getenv('JENKINS_URL')
-            jenkins_user = os.getenv('JENKINS_USER')
-            jenkins_token = os.getenv('JENKINS_TOKEN')
-
-            if not all([jenkins_url, jenkins_user, jenkins_token]):
-                logger.error("Jenkins credentials are not set in environment variables")
-                raise Exception("Jenkins credentials are not set in environment variables")
-
-            logger.info(f"Attempting to retrieve {key} from Jenkins credentials")
-            server = jenkins.Jenkins(jenkins_url, username=jenkins_user, password=jenkins_token)
-            secret = server.get_credential(key)
-            if not secret:
-                secret = os.getenv(key)
-                if not secret:
-                    logger.error(f"Secret {key} not found in Jenkins credentials provider or environment variables")
-                    raise Exception(f"Secret {key} not found in Jenkins credentials or environment variables")
-            return secret
-            
-        except Exception as e:
-            logger.error(f"Error accessing Jenkins credentials: {str(e)}")
-            raise Exception(f"Error accessing Jenkins credentials: {str(e)}")
     
-    # If we're not in Jenkins and the secret wasn't in environment variables
-    # Try to load from .env file
+    # If not found in environment variables, try to load from .env file
     if os.path.exists('.env'):
         load_dotenv()
         secret = os.getenv(key)
@@ -114,8 +86,7 @@ def get_secret(key):
             return secret
     
     logger.error(f"Secret {key} not found in any available sources")
-    raise Exception(f"Secret {key} not found in any available sources")
-
+    raise Exception(f"Secret {key} not found in environment variables or .env file")
 
 
 def run_command(command, capture_output=True, check=True):
