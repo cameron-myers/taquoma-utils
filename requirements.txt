@@ -1,4 +1,7 @@
 python-jenkins==1.8.2
 dotenv==0.9.9
-azure==5.0.0
+azure-mgmt-storage==22.1.1
+azure-mgmt-resource==23.3.0
+azure-keyvault-secrets==4.9.0
+azure-storage-blob==12.25.0
 DateTime==5.5
