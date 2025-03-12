@@ -72,6 +72,7 @@ def generate_build_metadata():
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'jobname': get_secret('JOB_NAME'),
         'buildnumber': get_secret('BUILD_NUMBER'),
+        'result': get_secret('BUILD_STATUS'),
         'buildurl': get_secret('BUILD_URL'),
         'commit': get_secret('GIT_COMMIT'),
         'branch': get_secret('GIT_BRANCH'),
