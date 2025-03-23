@@ -28,7 +28,7 @@ def get_file_metadata(file_name, file_path):
         'id': os.path.splitext(os.path.basename(file_path))[0],
         'packagemode': get_secret('PACKAGE_MODE'),
         'packagename': file_name,
-        'commit': get_secret('COMMIT_SHA'),
+        'commit': get_secret('GIT_COMMIT'),
         'packageformat': os.path.splitext(os.path.basename(file_path))[1],
         'packagesize': os.path.getsize(file_path)
     }
