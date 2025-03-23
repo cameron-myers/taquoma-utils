@@ -88,14 +88,7 @@ def upload_file_with_azcopy(file_path):
         bool: True if upload was successful, False otherwise
     """
     try:
-       
-        if not os.path.isabs(file_path):
-            file_path = os.path.join(os.getcwd(), file_path)
-        # Remove leading slash if it's just a relative path mistakenly starting with /
-        elif file_path.startswith('/') and not os.path.exists(file_path) and os.path.exists(file_path[1:]):
-            file_path = file_path[1:]
-            logger.info(f"Looking for file at path: {file_path}")
-            
+       #require absolute path as input
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
             # Try to list files in the directory to help debug
