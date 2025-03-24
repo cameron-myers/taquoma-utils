@@ -77,7 +77,7 @@ def register_file_to_newdahkobed(package_name, file_path):
     
 
 
-def upload_file_with_azcopy(file_path):
+def upload_file_with_azcopy(file_path, overwrite=True):
     """
     Upload a file to Azure Storage using azcopy.
     
@@ -119,8 +119,14 @@ def upload_file_with_azcopy(file_path):
         
         package_name = os.path.basename(file_path)
         logger.info(f"Package Name: {package_name}")
-        rename_path = rename_file_uuid(file_path)
-        logger.info(f"Renamed file to {rename_path}")
+        # Only rename if not overwriting or if it's a new file
+        if not overwrite:
+            rename_path = rename_file_uuid(file_path)
+            logger.info(f"Renamed file to {rename_path}")
+        else:
+            # When overwriting, we keep the original filename for consistency
+            rename_path = file_path
+            logger.info(f"Using original filename for overwrite: {rename_path}")
         
         file_name = os.path.basename(rename_path)
         # Build the destination URL
@@ -143,6 +149,22 @@ def upload_file_with_azcopy(file_path):
                 logger.info(f"Container {container_name} created successfully")
             else:
                 logger.info(f"Container {container_name} already exists")
+                
+            # Check if blob already exists
+            blob_client = container_client.get_blob_client(file_name)
+            blob_exists = blob_client.exists()
+            
+            if blob_exists:
+                if overwrite:
+                    logger.info(f"Blob {file_name} already exists and will be overwritten")
+                else:
+                    logger.info(f"Blob {file_name} already exists but overwrite is disabled. Generating unique name.")
+                    # Rename with UUID if not overwriting
+                    rename_path = rename_file_uuid(file_path)
+                    file_name = os.path.basename(rename_path)
+                    logger.info(f"Using unique filename: {file_name}")
+                    destination_url = f"https://{storage_account}.blob.core.windows.net/{container_name}/{file_name}?{sas_token}"
+            
         except Exception as e:
             logger.error(f"Error checking/creating container: {str(e)}")
             return False
@@ -197,8 +219,7 @@ if __name__ == "__main__":
         sys.exit(1)
     #SERVER UP AND RUNNING - Attempt to upload the file
     try:
-        upload_file_with_azcopy(get_secret('PACKAGE_PATH'))
-        
+        upload_file_with_azcopy(get_secret('PACKAGE_PATH'), True)
     except Exception as e:
         logger.error(f"Script failed: {str(e)}")
         sys.exit(1)
