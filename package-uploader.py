@@ -206,7 +206,7 @@ if __name__ == "__main__":
     try:
         server_endpoint = get_secret('SERVER_ENDPOINT')
         logger.info(f"Checking server health at {server_endpoint}/healthcheck")
-        health_response = requests.get(f"{server_endpoint}/healthcheck", timeout=10)
+        health_response = requests.get(f"{server_endpoint}/healthcheck", timeout=100)
         
         if health_response.status_code == 200 and health_response.text == 'Alive':
             logger.info("Server health check passed")
