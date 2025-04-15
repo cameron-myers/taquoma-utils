@@ -75,7 +75,7 @@ def generate_build_metadata():
         'result': get_secret('BUILD_STATUS'),
         'buildurl': get_secret('BUILD_URL'),
         'commit': get_secret('GIT_COMMIT'),
-        'branch': get_secret('GIT_BRANCH'),
+        'branch': get_secret('GIT_BRANCH') or get_secret('PR_NUMBER'),
         'buildnode': get_secret('NODE_NAME')
     }
     
