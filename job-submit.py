@@ -76,7 +76,7 @@ def generate_build_metadata():
         'buildurl': get_secret('BUILD_URL'),
         'commit': get_secret('GIT_COMMIT'),
         'branch': get_secret('GIT_BRANCH'),
-        'nodename': get_secret('NODE_NAME')
+        'buildnode': get_secret('NODE_NAME')
     }
     
     # Filter out empty values
